@@ -1,0 +1,47 @@
+syntax = "proto3";
+package customs;
+
+import "google/protobuf/timestamp.proto";
+
+enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+    ERROR = 2;
+    USERNOTEXIST = 3;
+}
+
+message User {
+    string name = 1;
+    uint32 age = 2;
+    string email = 3;
+    string password = 4;
+}
+
+message LoginRequest {
+    string name = 1;
+    string password = 2;
+}
+
+message Request {
+    google.protobuf.Timestamp  timestamp = 1;
+    uint32 id = 2;
+    oneof request{
+        LoginRequest login = 3;
+    }
+}
+
+message LoginResponse {
+    uint32 code = 1;
+    string name = 2;
+    string email = 3;
+    string password = 4;
+}
+
+message Response {
+    google.protobuf.Timestamp  timestamp = 1;
+    uint32 id = 2;
+    oneof response{
+        Status status = 3;
+        LoginResponse login = 4;
+    }
+}
