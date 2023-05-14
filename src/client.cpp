@@ -26,6 +26,12 @@ void Client::Run() {
     LOG(INFO) << "Client::Run()";
     int rv;
     start = nng_clock();
+    Request req;
+    Response rep;
+    req.set_id(1);
+    *(req.mutable_timestamp()) = TimeUtil::GetCurrentTime();
+    req.mutable_login()->set_name("test");
+    req.mutable_login()->set_password("123");
 
     if ((rv = nng_msg_alloc(&msg, 0)) != 0) {
         LOG(ERROR) << "nng_msg_alloc failed with error code: " << rv;
@@ -36,7 +42,13 @@ void Client::Run() {
         nng_msg_free(msg);
         return;
     }
-    if ((rv = nng_msg_append(msg, "Hello, Server.", strlen("Hello, World."))) != 0) {
+    // if ((rv = nng_msg_append(msg, "Hello, Server.", strlen("Hello, World."))) != 0) {
+    //     LOG(ERROR) << "nng_msg_append failed with error code: " << rv;
+    //     nng_msg_free(msg);
+    //     return;
+    // }
+
+    if ((rv = nng_msg_append(msg, req.SerializeAsString().c_str(), req.SerializeAsString().length())) != 0) {
         LOG(ERROR) << "nng_msg_append failed with error code: " << rv;
         nng_msg_free(msg);
         return;
@@ -52,7 +64,12 @@ void Client::Run() {
         return;
     }
     std::string message(reinterpret_cast<char*>(nng_msg_body(msg)), nng_msg_len(msg));
-    LOG(INFO) << "Received message: " << message;
+    // LOG(INFO) << "Received message: " << message;
+    if (!rep.ParseFromString(message)) {
+        LOG(ERROR) << "Failed to parse response";
+        return;
+    }
+    LOG(INFO) << "Response: " << rep.DebugString();
     end = nng_clock();
     nng_msg_free(msg);
 
@@ -64,6 +81,7 @@ void shutdown_logging() {
     google::ShutdownGoogleLogging();
 }
 int main(const int argc, const char* argv[]) {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
     // Init glog
     InitGoogleLogging(argv[0]);
     // Set log directory

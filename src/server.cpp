@@ -4,6 +4,41 @@ Server::Server() { LOG(INFO) << "Server::Server()"; }
 
 Server::~Server() { LOG(INFO) << "Server::~Server()"; }
 
+void Server::Parse(nng_msg*& msg) {
+    LOG(INFO) << "Server::Parse()";
+    int rv;
+    std::string message(reinterpret_cast<char*>(nng_msg_body(msg)), nng_msg_len(msg));
+    // LOG(INFO) << "Received message: " << message;
+    nng_msg_clear(msg);
+    Request req;
+    Response rep;
+
+    if (!req.ParseFromString(message)) {
+        LOG(ERROR) << "ParseFromString failed";
+        return;
+    }
+    LOG(INFO) << "Received request: " << req.DebugString();
+    switch (req.request_case()) {
+        case Request::kLogin: {
+            rep.set_id(2);
+            *(rep.mutable_timestamp()) = TimeUtil::GetCurrentTime();
+            rep.mutable_login()->set_name("test1");
+            rep.mutable_login()->set_password("321");
+            rep.mutable_login()->set_code(3);
+            rep.mutable_login()->set_email("123@qq.com");
+        } break;
+
+        default:
+            break;
+    }
+
+    if ((rv = nng_msg_append(msg, rep.SerializeAsString().c_str(), rep.SerializeAsString().length())) != 0) {
+        LOG(ERROR) << "nng_msg_append failed with error code: " << rv;
+        return;
+    }
+    return;
+}
+
 void Server::server_cb(void* arg) {
     // LOG(INFO) << "Server::server_cb()";
     struct work* work = (struct work*)arg;
@@ -29,9 +64,9 @@ void Server::server_cb(void* arg) {
                 nng_ctx_recv(work->ctx, work->aio);
                 return;
             }
-            LOG(INFO) << "Received message at " << when;
-            std::string message(reinterpret_cast<char*>(nng_msg_body(msg)), nng_msg_len(msg));
-            LOG(INFO) << "Received message: " << message;
+            // parse msg and set msg
+            Parse(msg);
+
             work->msg = msg;
             work->state = work::WAIT;
             nng_sleep_aio(when, work->aio);
@@ -39,12 +74,6 @@ void Server::server_cb(void* arg) {
         case work::WAIT:
             LOG(INFO) << "WAIT";
             // We could add more data to the message here.
-            nng_msg_clear(work->msg);
-            if ((rv = nng_msg_append(work->msg, "Hello, Client.", strlen("Hello, Client."))) != 0) {
-                LOG(ERROR) << "nng_msg_append failed with error code: " << rv;
-                // nng_msg_free(work->msg);
-                return;
-            }
             nng_aio_set_msg(work->aio, work->msg);
             work->msg = NULL;
             work->state = work::SEND;
@@ -125,6 +154,7 @@ void shutdown_logging() {
     google::ShutdownGoogleLogging();
 }
 int main(const int argc, const char* argv[]) {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
     // Init glog
     InitGoogleLogging(argv[0]);
     // Set log directory
